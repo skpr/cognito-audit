@@ -1,0 +1,22 @@
+name: 📋 Lint
+
+on:
+  push
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Git clone the repository
+        uses: actions/checkout@v5
+
+      - name: 📦 Install Mise
+        run: |
+          curl https://mise.run | sh
+          mise install
+
+      - name: 📋 Lint
+        run: mise run lint

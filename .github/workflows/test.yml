@@ -1,0 +1,19 @@
+name: 🧪 Test
+
+on:
+  push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Git clone the repository
+        uses: actions/checkout@v5
+
+      - name: 📦 Install Mise
+        run: |
+          curl https://mise.run | sh
+          mise install
+
+      - name: 🧪 Test
+        run: mise run test
