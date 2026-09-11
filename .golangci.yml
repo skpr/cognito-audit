@@ -5,9 +5,8 @@ issues:
   max-same-issues: 0
 
 linters:
-  disable:
-    # We check error as part of our PR process.
-    - errcheck
+  enable:
+    - gosec
 
 formatters:
   enable:
