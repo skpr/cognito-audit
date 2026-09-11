@@ -11,12 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: ⬇️ Git clone the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: 📦 Install Mise
-        run: |
-          curl https://mise.run | sh
-          mise install
+        uses: jdx/mise-action@v4
 
       - name: 📋 Lint
         run: mise run lint

@@ -14,12 +14,10 @@ jobs:
 
     steps:
       - name: ⬇️ Git clone the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: 📦 Install Mise
-        run: |
-          curl https://mise.run | sh
-          mise install
+        uses: jdx/mise-action@v4
 
       - name: 📦 Build package
         run: mise run package
