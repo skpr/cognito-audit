@@ -1,0 +1,4 @@
+.idea/*
+/vendor
+bootstrap
+lambda-handler.zip
