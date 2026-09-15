@@ -3,6 +3,7 @@ go = "1.26"
 "go:github.com/daixiang0/gci" = "latest"
 "github:golangci/golangci-lint" = "latest"
 "github:securego/gosec" = "latest"
+"github:goreleaser/goreleaser" = "latest"
 
 [env]
 CGO_ENABLED=0
@@ -30,7 +31,13 @@ description = "Checks to verify code correctness"
 run = "go test -cover ./..."
 depends = ["vendor"]
 
-[tasks.package]
-description = "Package the lambda"
-run = "zip lambda-handler.zip bootstrap defaults.env"
-depends = ["build"]
+[tasks.release]
+description = "Build and publish AMD64 and ARM64 lambda-handler.zip releases via goreleaser"
+run = "goreleaser release"
+depends = ["vendor"]
+
+[tasks."snapshot"]
+description = "Build AMD64 and ARM64 lambda-handler.zip artifacts locally without publishing"
+run = "goreleaser release --clean --snapshot"
+depends = ["vendor"]
+

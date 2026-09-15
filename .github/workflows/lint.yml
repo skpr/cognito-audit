@@ -1,7 +1,10 @@
-name: 📋 Lint
+name: Lint
 
 on:
-  push
+  push:
+    branches:
+      - main
+  pull_request:
 
 permissions:
   contents: read

@@ -1,0 +1,32 @@
+version: 2
+
+builds:
+  - id: cognito-audit-login
+    binary: bootstrap
+    main: ./cmd/login
+    ldflags:
+      - -extldflags '-static'
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - lambda.norpc
+
+archives:
+  - id: cognito-audit-login
+    ids:
+      - cognito-audit-login
+    formats:
+      - zip
+    name_template: "cognito-audit-login-{{ .Arch }}"
+    wrap_in_directory: false
+
+checksum:
+  disable: true
+
+changelog:
+  use: github-native
