@@ -2,3 +2,4 @@
 /vendor
 bootstrap
 lambda-handler.zip
+/dist
