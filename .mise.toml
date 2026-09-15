@@ -31,6 +31,7 @@ run = "golangci-lint run"
 [tasks."lint:goreleaser"]
 description = "Run a goreleaser check"
 run = "goreleaser check"
+sources = [".goreleaser.yml"]
 
 [tasks.test]
 description = "Checks to verify code correctness"
@@ -46,4 +47,3 @@ depends = ["vendor"]
 description = "Build AMD64 and ARM64 lambda-handler.zip artifacts locally without publishing"
 run = "goreleaser release --clean --snapshot"
 depends = ["vendor"]
-
