@@ -1,5 +1,5 @@
 [tools]
-go = "1.26"
+go = "1.27"
 "go:github.com/daixiang0/gci" = "latest"
 "github:golangci/golangci-lint" = "latest"
 "github:securego/gosec" = "latest"
