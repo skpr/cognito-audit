@@ -7,7 +7,6 @@ go = "1.26"
 
 [env]
 CGO_ENABLED=0
-OUTPUT="bootstrap"
 
 [tasks.vendor]
 description = "Vendor resets the main module's vendor directory to include all packages needed to build the application"
@@ -19,12 +18,19 @@ run = "go mod tidy"
 
 [tasks.build]
 description = "Build the application"
-run = "go build -o ${OUTPUT} -ldflags=${CLI_LDFLAGS} -tags lambda.norpc main.go"
+run = "goreleaser build --clean --snapshot"
 depends = ["vendor"]
 
 [tasks."lint"]
+depends = ["lint:go", "lint:goreleaser"]
+
+[tasks."lint:go"]
 description = "Linting automatically checks code for errors and style issues"
 run = "golangci-lint run"
+
+[tasks."lint:goreleaser"]
+description = "Run a goreleaser check"
+run = "goreleaser check"
 
 [tasks.test]
 description = "Checks to verify code correctness"
