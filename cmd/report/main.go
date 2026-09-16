@@ -32,10 +32,10 @@ const (
 
 	// ReportAttachmentName is the filename used for the JSON report
 	// attachment on the outgoing email.
-	ReportAttachmentName = "cognito-audit-report.json"
+	ReportAttachmentName = "user-audit-report.json"
 
 	// ReportEmailSubject is the subject line used for the outgoing email.
-	ReportEmailSubject = "Cognito Audit Report"
+	ReportEmailSubject = "User Audit Report"
 )
 
 // Config is the environment based configuration for this lambda.
@@ -211,7 +211,7 @@ func buildEmail(from, to, subject string, attachment []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = bodyPart.Write([]byte("Please find the attached Cognito audit report.\r\n"))
+	_, err = bodyPart.Write([]byte("Please find the attached user report.\r\n"))
 	if err != nil {
 		return nil, err
 	}
@@ -291,4 +291,3 @@ func getGroups(ctx context.Context, cognitoClient *cognitoidentityprovider.Clien
 
 	return groups, nil
 }
-
