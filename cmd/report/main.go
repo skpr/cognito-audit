@@ -66,6 +66,7 @@ type ExportUser struct {
 	Status    string     `json:"status"`
 	Enabled   bool       `json:"enabled"`
 	LastLogin *time.Time `json:"last_login"`
+	Groups    []string   `json:"groups"`
 }
 
 func main() {
@@ -139,12 +140,18 @@ func run(ctx context.Context, logger *yolog.Logger, cognitoClient *cognitoidenti
 				return err
 			}
 
+			groups, err := getGroups(ctx, cognitoClient, config.UserPoolID, *user.Username)
+			if err != nil {
+				return err
+			}
+
 			exportUser := ExportUser{
 				Username:  *user.Username,
 				Email:     getAttribute(user.Attributes, "email"),
 				Status:    string(user.UserStatus),
 				Enabled:   user.Enabled,
 				LastLogin: lastLogin,
+				Groups:    groups,
 			}
 			export.Users = append(export.Users, exportUser)
 			total++
@@ -260,3 +267,28 @@ func getLastLogin(attrs []types.AttributeType) (*time.Time, error) {
 
 	return &record.Time, nil
 }
+
+// getGroups returns the names of the Cognito groups that the given user
+// belongs to, paginating through the full result set.
+func getGroups(ctx context.Context, cognitoClient *cognitoidentityprovider.Client, userPoolID, username string) ([]string, error) {
+	paginator := cognitoidentityprovider.NewAdminListGroupsForUserPaginator(cognitoClient, &cognitoidentityprovider.AdminListGroupsForUserInput{
+		UserPoolId: aws.String(userPoolID),
+		Username:   aws.String(username),
+	})
+
+	var groups []string
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, group := range page.Groups {
+			groups = append(groups, aws.ToString(group.GroupName))
+		}
+	}
+
+	return groups, nil
+}
+
