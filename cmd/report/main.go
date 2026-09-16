@@ -1,10 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
+	"mime"
+	"mime/multipart"
+	"net/textproto"
 	"os"
 	"time"
 
@@ -13,6 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2"
+	sestypes "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 	"github.com/caarlos0/env/v11"
 	"github.com/skpr/yolog"
 
@@ -22,12 +29,24 @@ import (
 const (
 	// YoLogStream is the log stream name for yolog logs.
 	YoLogStream = "cognito-audit-report"
+
+	// ReportAttachmentName is the filename used for the JSON report
+	// attachment on the outgoing email.
+	ReportAttachmentName = "cognito-audit-report.json"
+
+	// ReportEmailSubject is the subject line used for the outgoing email.
+	ReportEmailSubject = "Cognito Audit Report"
 )
 
 // Config is the environment based configuration for this lambda.
 type Config struct {
 	// UserPoolID is the ID of the Cognito user pool to report on.
 	UserPoolID string `env:"COGNITO_USER_POOL_ID,required"`
+	// ReportEmailFrom is the "From" address used when sending the report
+	// via SES. This address must be verified in SES.
+	ReportEmailFrom string `env:"REPORT_EMAIL_FROM,required"`
+	// ReportEmailTo is the address the report email is sent to.
+	ReportEmailTo string `env:"REPORT_EMAIL_TO,required"`
 }
 
 // Event is the input event for this lambda. It is currently empty as this
@@ -83,9 +102,10 @@ func handler(ctx context.Context, _ Event) error {
 		return logger.WrapError(err)
 	}
 
-	client := cognitoidentityprovider.NewFromConfig(awsConfig)
+	cognitoClient := cognitoidentityprovider.NewFromConfig(awsConfig)
+	sesClient := sesv2.NewFromConfig(awsConfig)
 
-	err = run(ctx, logger, client, lambdaConfig)
+	err = run(ctx, logger, cognitoClient, sesClient, lambdaConfig)
 	if err != nil {
 		return logger.WrapError(err)
 	}
@@ -94,9 +114,10 @@ func handler(ctx context.Context, _ Event) error {
 }
 
 // run reads all users from the configured Cognito user pool, paginating
-// through the full result set, and prints them out to the provided writer.
-func run(ctx context.Context, logger *yolog.Logger, client *cognitoidentityprovider.Client, config Config) error {
-	paginator := cognitoidentityprovider.NewListUsersPaginator(client, &cognitoidentityprovider.ListUsersInput{
+// through the full result set, and emails the resulting JSON report as an
+// attachment via Amazon SES.
+func run(ctx context.Context, logger *yolog.Logger, cognitoClient *cognitoidentityprovider.Client, sesClient *sesv2.Client, config Config) error {
+	paginator := cognitoidentityprovider.NewListUsersPaginator(cognitoClient, &cognitoidentityprovider.ListUsersInput{
 		UserPoolId: &config.UserPoolID,
 	})
 
@@ -133,14 +154,84 @@ func run(ctx context.Context, logger *yolog.Logger, client *cognitoidentityprovi
 	export.Total = total
 	logger.SetAttr("total_users", total)
 
-	json, err := json.Marshal(export)
+	reportJSON, err := json.Marshal(export)
 	if err != nil {
 		return logger.WrapError(err)
 	}
 
-	fmt.Print(string(json))
+	rawMessage, err := buildEmail(config.ReportEmailFrom, config.ReportEmailTo, ReportEmailSubject, reportJSON)
+	if err != nil {
+		return logger.WrapError(err)
+	}
+
+	_, err = sesClient.SendEmail(ctx, &sesv2.SendEmailInput{
+		FromEmailAddress: aws.String(config.ReportEmailFrom),
+		Destination: &sestypes.Destination{
+			ToAddresses: []string{config.ReportEmailTo},
+		},
+		Content: &sestypes.EmailContent{
+			Raw: &sestypes.RawMessage{
+				Data: rawMessage,
+			},
+		},
+	})
+	if err != nil {
+		return logger.WrapError(err)
+	}
+
+	logger.SetAttr("report_email_to", config.ReportEmailTo)
 
 	return nil
+}
+
+// buildEmail constructs a raw MIME email with the provided JSON report
+// attached as a file, suitable for sending via SES's raw message API.
+func buildEmail(from, to, subject string, attachment []byte) ([]byte, error) {
+	var buf bytes.Buffer
+
+	writer := multipart.NewWriter(&buf)
+
+	fmt.Fprintf(&buf, "From: %s\r\n", from)
+	fmt.Fprintf(&buf, "To: %s\r\n", to)
+	fmt.Fprintf(&buf, "Subject: %s\r\n", mime.QEncoding.Encode("UTF-8", subject))
+	fmt.Fprint(&buf, "MIME-Version: 1.0\r\n")
+	fmt.Fprintf(&buf, "Content-Type: multipart/mixed; boundary=%q\r\n", writer.Boundary())
+	fmt.Fprint(&buf, "\r\n")
+
+	bodyPart, err := writer.CreatePart(textproto.MIMEHeader{
+		"Content-Type": {"text/plain; charset=UTF-8"},
+	})
+	if err != nil {
+		return nil, err
+	}
+	_, err = bodyPart.Write([]byte("Please find the attached Cognito audit report.\r\n"))
+	if err != nil {
+		return nil, err
+	}
+
+	attachmentPart, err := writer.CreatePart(textproto.MIMEHeader{
+		"Content-Type":              {"application/json"},
+		"Content-Transfer-Encoding": {"base64"},
+		"Content-Disposition":       {fmt.Sprintf(`attachment; filename=%q`, ReportAttachmentName)},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	encoded := make([]byte, base64.StdEncoding.EncodedLen(len(attachment)))
+	base64.StdEncoding.Encode(encoded, attachment)
+
+	_, err = attachmentPart.Write(encoded)
+	if err != nil {
+		return nil, err
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
 // getAttribute gets an attribute from the user by attribute name.
