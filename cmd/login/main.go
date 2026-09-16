@@ -13,6 +13,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
 	"github.com/caarlos0/env/v11"
 	"github.com/skpr/yolog"
+
+	audittypes "github.com/skpr/cognito-audit/internal/types"
 )
 
 const (
@@ -25,15 +27,6 @@ type Config struct {
 	// be updated with the last login metadata. Custom attributes must be
 	// prefixed with "custom:" when referenced via the Cognito API.
 	CustomAttribute string `env:"COGNITO_LAST_LOGIN_ATTRIBUTE" envDefault:"custom:last_login"`
-}
-
-// LastLogin is the JSON payload that is stored in the custom user pool
-// attribute every time a user successfully authenticates.
-type LastLogin struct {
-	// Time the user last logged in, in RFC3339 format.
-	Time string `json:"time"`
-	// ClientID of the app client that was used to authenticate.
-	ClientID string `json:"client_id,omitempty"`
 }
 
 func main() {
@@ -74,8 +67,8 @@ func handler(ctx context.Context, event events.CognitoEventUserPoolsPostAuthenti
 // run updates the authenticated user's custom attribute with a JSON payload
 // describing their most recent login.
 func run(ctx context.Context, logger *yolog.Logger, client *cognitoidentityprovider.Client, config Config, event events.CognitoEventUserPoolsPostAuthentication) error {
-	payload, err := json.Marshal(LastLogin{
-		Time:     time.Now().UTC().Format(time.RFC3339),
+	payload, err := json.Marshal(audittypes.LastLogin{
+		Time:     time.Now().UTC(),
 		ClientID: event.CallerContext.ClientID,
 	})
 	if err != nil {

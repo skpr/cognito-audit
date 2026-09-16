@@ -18,7 +18,7 @@ run = "go mod tidy"
 
 [tasks.build]
 description = "Build the application"
-run = "goreleaser build --clean --snapshot"
+run = "go build -o dist/cognito-audit-report -ldflags=${CLI_LDFLAGS} -tags lambda.norpc cmd/report/main.go"
 depends = ["vendor"]
 
 [tasks."lint"]
