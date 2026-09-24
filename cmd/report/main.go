@@ -36,6 +36,8 @@ const (
 
 // Config is the environment based configuration for this lambda.
 type Config struct {
+	// CustomAttribute is the name of the custom cognito attribute that holds last login data.
+	CustomAttribute string `env:"COGNITO_LAST_LOGIN_ATTRIBUTE" envDefault:"custom:last_login"`
 	// UserPoolID is the ID of the Cognito user pool to report on.
 	UserPoolID string `env:"COGNITO_USER_POOL_ID,required"`
 	// EmailFrom is the "From" address used when sending the report
@@ -135,7 +137,7 @@ func run(ctx context.Context, logger *yolog.Logger, cognitoClient *cognitoidenti
 		}
 
 		for _, user := range page.Users {
-			lastLogin, err := getLastLogin(user.Attributes)
+			lastLogin, err := getLastLogin(user.Attributes, config.CustomAttribute)
 			if err != nil {
 				return err
 			}
@@ -252,8 +254,8 @@ func getAttribute(attrs []types.AttributeType, name string) string {
 }
 
 // getLastLogin gets the last login for the user.
-func getLastLogin(attrs []types.AttributeType) (*time.Time, error) {
-	value := getAttribute(attrs, "custom:last_login")
+func getLastLogin(attrs []types.AttributeType, attrName string) (*time.Time, error) {
+	value := getAttribute(attrs, attrName)
 
 	if value == "" {
 		return nil, nil

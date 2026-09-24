@@ -6,6 +6,14 @@ A Lambda for populating a custom field on a Cognito user with details about thei
 
 You can adjust how the lambda responds with the following configuration options.
 
+### Login Lambda
+
+| Name                         | Description                    | Default                    |
+|------------------------------|--------------------------------|----------------------------|
+| COGNITO_LAST_LOGIN_ATTRIBUTE | The last login details         | custom:last_login          |
+
+### Report Lambda
+
 | Name                         | Description                    | Default                    |
 |------------------------------|--------------------------------|----------------------------|
 | COGNITO_LAST_LOGIN_ATTRIBUTE | The last login details         | custom:last_login          |
