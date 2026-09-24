@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -29,24 +30,23 @@ import (
 const (
 	// YoLogStream is the log stream name for yolog logs.
 	YoLogStream = "cognito-audit-report"
-
-	// ReportAttachmentName is the filename used for the JSON report
-	// attachment on the outgoing email.
-	ReportAttachmentName = "user-audit-report.json"
-
-	// ReportEmailSubject is the subject line used for the outgoing email.
-	ReportEmailSubject = "User Audit Report"
+	// DateFormat for the token replacement date.
+	DateFormat = "02012006"
 )
 
 // Config is the environment based configuration for this lambda.
 type Config struct {
 	// UserPoolID is the ID of the Cognito user pool to report on.
 	UserPoolID string `env:"COGNITO_USER_POOL_ID,required"`
-	// ReportEmailFrom is the "From" address used when sending the report
+	// EmailFrom is the "From" address used when sending the report
 	// via SES. This address must be verified in SES.
-	ReportEmailFrom string `env:"REPORT_EMAIL_FROM,required"`
-	// ReportEmailTo is the address the report email is sent to.
-	ReportEmailTo string `env:"REPORT_EMAIL_TO,required"`
+	EmailFrom string `env:"EMAIL_FROM,required"`
+	// EmailTo is the address the report email is sent to.
+	EmailTo string `env:"EMAIL_TO,required"`
+	// EmailSubject is the subject of the email.
+	EmailSubject string `env:"EMAIL_SUBJECT,required" envDefault:"User Audit Report - [date]"`
+	// FileName is the name of the attachment in the email.
+	FileName string `env:"FILE_NAME,required" envDefault:"UAR-[date].json"`
 }
 
 // Event is the input event for this lambda. It is currently empty as this
@@ -166,15 +166,15 @@ func run(ctx context.Context, logger *yolog.Logger, cognitoClient *cognitoidenti
 		return logger.WrapError(err)
 	}
 
-	rawMessage, err := buildEmail(config.ReportEmailFrom, config.ReportEmailTo, ReportEmailSubject, reportJSON)
+	rawMessage, err := buildEmail(config.EmailFrom, config.EmailTo, replaceTokens(config.EmailSubject), replaceTokens(config.FileName), reportJSON)
 	if err != nil {
 		return logger.WrapError(err)
 	}
 
 	_, err = sesClient.SendEmail(ctx, &sesv2.SendEmailInput{
-		FromEmailAddress: aws.String(config.ReportEmailFrom),
+		FromEmailAddress: aws.String(config.EmailFrom),
 		Destination: &sestypes.Destination{
-			ToAddresses: []string{config.ReportEmailTo},
+			ToAddresses: []string{config.EmailTo},
 		},
 		Content: &sestypes.EmailContent{
 			Raw: &sestypes.RawMessage{
@@ -186,14 +186,14 @@ func run(ctx context.Context, logger *yolog.Logger, cognitoClient *cognitoidenti
 		return logger.WrapError(err)
 	}
 
-	logger.SetAttr("report_email_to", config.ReportEmailTo)
+	logger.SetAttr("report_email_to", config.EmailTo)
 
 	return nil
 }
 
 // buildEmail constructs a raw MIME email with the provided JSON report
 // attached as a file, suitable for sending via SES's raw message API.
-func buildEmail(from, to, subject string, attachment []byte) ([]byte, error) {
+func buildEmail(from, to, subject, filename string, attachment []byte) ([]byte, error) {
 	var buf bytes.Buffer
 
 	writer := multipart.NewWriter(&buf)
@@ -219,7 +219,7 @@ func buildEmail(from, to, subject string, attachment []byte) ([]byte, error) {
 	attachmentPart, err := writer.CreatePart(textproto.MIMEHeader{
 		"Content-Type":              {"application/json"},
 		"Content-Transfer-Encoding": {"base64"},
-		"Content-Disposition":       {fmt.Sprintf(`attachment; filename=%q`, ReportAttachmentName)},
+		"Content-Disposition":       {fmt.Sprintf(`attachment; filename=%q`, filename)},
 	})
 	if err != nil {
 		return nil, err
@@ -290,4 +290,10 @@ func getGroups(ctx context.Context, cognitoClient *cognitoidentityprovider.Clien
 	}
 
 	return groups, nil
+}
+
+// replaceTokens replaces tokens in the subject and filename with dynamic values.
+func replaceTokens(in string) string {
+	in = strings.ReplaceAll(in, "[date]", time.Now().Format(DateFormat))
+	return in
 }

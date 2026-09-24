@@ -23,4 +23,3 @@ jobs:
         run: mise run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
