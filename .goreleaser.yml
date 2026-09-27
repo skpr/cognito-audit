@@ -17,7 +17,7 @@ builds:
       - lambda.norpc
   - id: cognito-audit-report
     binary: bootstrap
-    main: ./cmd/login
+    main: ./cmd/report
     ldflags:
       - -extldflags '-static'
     env:
